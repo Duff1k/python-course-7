@@ -1,8 +1,14 @@
+import datetime
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import filedialog
+from datetime import datetime
 
 listener = False
+
+def operation_saver(text):
+    with open("calculations_history.txt", "a", encoding="utf-8") as f:
+        f.write(text + "\n")
 
 def add_value(value):
     current_op = operationLabel.get()
@@ -95,13 +101,11 @@ def do_operation():
             enter_val = enter_val[:-2]
         operation_val = current_op + " " + current + " ="
 
+    operation_saver(str(datetime.now()) + " " + operation_val + " " + enter_val)
     operationLabel.insert(0, operation_val)
     enterLabel.insert(0, enter_val)
     enterLabel.configure(state="disabled", disabledbackground="#1c1b1b")
     operationLabel.configure(state="disabled", disabledbackground="#1c1b1b")
-
-
-
 
 def clear():
     enterLabel.configure(state="normal")
@@ -127,30 +131,6 @@ def delete_last():
     elif len(current) == 1:
         enterLabel.insert(0, "0")
     enterLabel.configure(state="disabled", disabledbackground="#1c1b1b")
-
-def save_tasks():
-    if not tasks:
-        messagebox.showerror("Информация", "Задач для сохранения нет")
-        return
-
-    file_path = filedialog.asksaveasfilename(
-        defaultextension=".txt",
-        filetypes=(("text files", "*.txt"), ("all files", "*.*")),
-        title="Сохранить задачу как...."
-    )
-
-    if not file_path:
-        return
-
-    try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            for text, t in tasks:
-                f.write(f"{text}-{t}\n")
-        messagebox.showinfo("Успешно", f"Задачи успешно сохранены в {file_path}")
-    except Exception as e:
-        messagebox.showerror("Ошибка", f"Не удалось сохранить файл, ошибка: {e}")
-
-
 
 #Основная форма
 window = tk.Tk()
