@@ -3,7 +3,7 @@ from tkinter import messagebox
 from tkinter import filedialog
 from datetime import datetime
 import threading
-import time
+import time2ц
 
 tasks = []
 
