@@ -1,101 +1,177 @@
 import tkinter as tk
 from tkinter import messagebox
-from tkinter import filedialog
 from datetime import datetime
-import threading
-import time
-
-tasks = []
-
-def add_task():
-    task_text = entry_task.get()
-    task_time = time_var.get()
-    if not task_text:
-        messagebox.showerror("Ошибка", "Введите задачу")
-        return
-
-    task = (task_text, task_time)
-    tasks.append(task)
-    listbox.insert(tk.END, f"{task_text}-{task_time}")
-    entry_task.delete(0, tk.END)
-
-def delete_task():
-    selected = listbox.curselection()
-    if not selected:
-        messagebox.showerror("Информация", "Выберите хотя бы одну задачу для удаления")
-        return
-    for index in reversed(selected):
-        listbox.delete(index)
-        del tasks[index]
-
-def save_tasks():
-    if not tasks:
-        messagebox.showerror("Информация", "Задач для сохранения нет")
-        return
-
-    file_path = filedialog.asksaveasfilename(
-        defaultextension=".txt",
-        filetypes=(("text files", "*.txt"), ("all files", "*.*")),
-        title="Сохранить задачу как...."
-    )
-
-    if not file_path:
-        return
-
-    try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            for text, t in tasks:
-                f.write(f"{text}-{t}\n")
-        messagebox.showinfo("Успешно", f"Задачи успешно сохранены в {file_path}")
-    except Exception as e:
-        messagebox.showerror("Ошибка", f"Не удалось сохранить файл, ошибка: {e}")
+import os
 
 
-def check_tasks():
-    while True:
-        now = datetime.now().strftime("%H:%M")
-        print(now)
-        for text, t in tasks[:]:
-            if t == now:
-                messagebox.showinfo("Напоминание", f"Пора выполнять задачу на время: {t}, Задача: {text}")
-            i = tasks.index((text, t))
-            listbox.delete(i)
-            tasks.remove((text, t))
-        time.sleep(5)
+class Calculator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Калькулятор с историей")
+        self.root.geometry("400x500")
+        self.root.resizable(False, False)
 
-window = tk.Tk()
-window.title("Планировщик задач")
-window.geometry("600x600")
-window.configure(background="#3136d4")
+        # Инициализация истории
+        self.history_file = "calculations_history.txt"
+        self.initialize_history_file()
 
-tk.Label(window, text="Введите задачу:", font=("Arial", 15), background="#3136d4", fg="#FFFFFF").pack()
-entry_task = tk.Entry(window, font=("Arial", 15), width=40)
-entry_task.pack(pady=5)
+        # Строка ввода
+        self.display_var = tk.StringVar()
+        self.display = tk.Entry(
+            root,
+            textvariable=self.display_var,
+            font=('Arial', 24),
+            bd=10,
+            relief=tk.RIDGE,
+            justify=tk.RIGHT,
+            state='readonly'
+        )
+        self.display.pack(pady=20, padx=20, fill=tk.BOTH, expand=True)
 
-frame_time = tk.Frame(window, background="#3136d4")
-frame_time.pack(pady=5)
+        # Фрейм для кнопок
+        buttons_frame = tk.Frame(root)
+        buttons_frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
 
-tk.Label(frame_time, text = "Выберите время: ", font=("Arial", 12), background="#3136d4").grid(row=0, column=0, padx=5)
+        # Кнопки
+        buttons = [
+            ('7', 0, 0), ('8', 0, 1), ('9', 0, 2), ('/', 0, 3),
+            ('4', 1, 0), ('5', 1, 1), ('6', 1, 2), ('*', 1, 3),
+            ('1', 2, 0), ('2', 2, 1), ('3', 2, 2), ('-', 2, 3),
+            ('0', 3, 0, 2), ('=', 3, 2), ('+', 3, 3),
+            ('C', 4, 0, 4)  # Кнопка очистки занимает 4 колонки
+        ]
 
-time_options = [f"{h:02d}:{m:02d}" for h in range(20, 24) for m in(0,47)]
-time_var = tk.StringVar(value=time_options[0])
+        # Создание кнопок
+        for button in buttons:
+            text = button[0]
+            row = button[1]
+            col = button[2]
+            colspan = button[3] if len(button) > 3 else 1
 
-time_menu = tk.OptionMenu(frame_time, time_var, *time_options)
-time_menu.config(width=10, font = ("Arial", 12))
-time_menu.grid(row=0, column=1)
+            if text == '=':
+                btn = tk.Button(
+                    buttons_frame,
+                    text=text,
+                    font=('Arial', 18, 'bold'),
+                    bg='#4CAF50',
+                    fg='white',
+                    command=self.calculate
+                )
+            elif text == 'C':
+                btn = tk.Button(
+                    buttons_frame,
+                    text=text,
+                    font=('Arial', 18, 'bold'),
+                    bg='#f44336',
+                    fg='white',
+                    command=self.clear_display
+                )
+            else:
+                btn = tk.Button(
+                    buttons_frame,
+                    text=text,
+                    font=('Arial', 18),
+                    bg='#f0f0f0',
+                    command=lambda t=text: self.add_to_display(t)
+                )
+
+            btn.grid(
+                row=row,
+                column=col,
+                columnspan=colspan,
+                sticky='nsew',
+                padx=5,
+                pady=5,
+                ipadx=10,
+                ipady=10
+            )
+
+        # Настройка веса строк и столбцов
+        for i in range(5):
+            buttons_frame.grid_rowconfigure(i, weight=1)
+        for i in range(4):
+            buttons_frame.grid_columnconfigure(i, weight=1)
+
+    def initialize_history_file(self):
+        """Инициализация файла истории, если он не существует"""
+        if not os.path.exists(self.history_file):
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                f.write("История вычислений калькулятора\n")
+                f.write("=" * 40 + "\n")
+
+    def add_to_display(self, char):
+        """Добавление символа на дисплей"""
+        current_text = self.display_var.get()
+        new_text = current_text + str(char)
+        self.display_var.set(new_text)
+
+    def clear_display(self):
+        """Очистка дисплея"""
+        self.display_var.set("")
+
+    def calculate(self):
+        """Вычисление выражения и сохранение в файл"""
+        expression = self.display_var.get()
+
+        if not expression:
+            return
+
+        try:
+            # Вычисление результата
+            result = eval(expression)
+
+            # Получение текущей даты и времени
+            now = datetime.now()
+            timestamp = now.strftime("[%Y-%m-%d %H:%M:%S]")
+
+            # Формирование строки для записи
+            history_entry = f"{timestamp} {expression} = {result}\n"
+
+            # Запись в файл
+            with open(self.history_file, 'a', encoding='utf-8') as f:
+                f.write(history_entry)
+
+            # Вывод результата
+            self.display_var.set(str(result))
+
+        except ZeroDivisionError:
+            messagebox.showerror("Ошибка", "Деление на ноль невозможно!")
+            self.save_error_to_history(expression, "Ошибка: деление на ноль")
+            self.display_var.set("Ошибка")
+        except SyntaxError:
+            messagebox.showerror("Ошибка", "Некорректное выражение!")
+            self.save_error_to_history(expression, "Ошибка: некорректное выражение")
+            self.display_var.set("Ошибка")
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Произошла ошибка: {str(e)}")
+            self.save_error_to_history(expression, f"Ошибка: {str(e)}")
+            self.display_var.set("Ошибка")
+
+    def save_error_to_history(self, expression, error_msg):
+        """Сохранение ошибки в историю"""
+        now = datetime.now()
+        timestamp = now.strftime("[%Y-%m-%d %H:%M:%S]")
+        history_entry = f"{timestamp} {expression} = {error_msg}\n"
+
+        with open(self.history_file, 'a', encoding='utf-8') as f:
+            f.write(history_entry)
 
 
-listbox = tk.Listbox(window, width=60, height=10, font=("Arial", 12), selectmode=tk.MULTIPLE)
-listbox.pack(pady=10)
+def main():
+    root = tk.Tk()
+    app = Calculator(root)
 
-frame_buttons = tk.Frame(window, bg="#3136d4")
-frame_buttons.pack(pady=5)
+    # Добавляем горячие клавиши
+    root.bind('<Return>', lambda event: app.calculate())
+    root.bind('<Escape>', lambda event: app.clear_display())
+    root.bind('<BackSpace>', lambda event: app.display_var.set(app.display_var.get()[:-1]))
 
-tk.Button(frame_buttons, text = "Добавить", command=add_task, font=("Arial", 12), bg="lightgreen", width=10).grid(row=0, column=0, padx=5)
-tk.Button(frame_buttons, text = "Удалить", command=delete_task, font=("Arial", 12), bg="tomato", width=10).grid(row=0, column=1, padx=5)
-tk.Button(frame_buttons, text = "Сохранить", command=save_tasks,font=("Arial", 12), bg="lightblue", width=10).grid(row=0, column=2, padx=5)
+    # Добавляем цифры с клавиатуры
+    for num in range(10):
+        root.bind(str(num), lambda event, n=num: app.add_to_display(n))
 
-thread = threading.Thread(target=check_tasks, daemon=True)
-thread.start()
+    root.mainloop()
 
-window.mainloop()
+
+if __name__ == "__main__":
+    main()
