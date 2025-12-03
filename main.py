@@ -1,8 +1,7 @@
 import tkinter as tk
 from datetime import datetime
-import os
 
-HISTORY_FILE = 'calculations.txt'
+HISTORY_FILE = 'calculations_history.txt'
 
 def save_to_history(expression, result):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
